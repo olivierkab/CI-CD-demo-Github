@@ -1,0 +1,56 @@
+name: CI-CD-Blob-Demo
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build_test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Build (generate artifact)
+      run: |
+        mkdir -p dist
+        echo "Build artifact generated at $(date)" > dist/app.txt
+
+    - name: Test (always pass)
+      run: echo "All tests passed"
+
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifact
+        path: dist/
+
+  release:
+    name: Release and Upload to Azure Blob
+    needs: build_test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download Build Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: build-artifact
+        path: dist
+
+    - name: Debug – list files
+      run: |
+        echo "Workspace: $GITHUB_WORKSPACE"
+        find $GITHUB_WORKSPACE
+
+    - name: Upload to Azure Blob Storage
+      uses: azure/cli@v2
+      with:
+        inlineScript: |
+          az storage blob upload-batch \
+            --connection-string "${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}" \
+            --destination build \
+            --source "$GITHUB_WORKSPACE/dist" \
+            --overwrite
